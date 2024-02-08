@@ -13,8 +13,7 @@ __all__ = (
 class Client:
     base_url = "https://api.hypixel.net"
     version = "/v2"
-    requests_per_second = 10
-    requests_per_second_auth = 10
+    requests_per_second = 0
 
     __instances: list['Client'] = []
 
