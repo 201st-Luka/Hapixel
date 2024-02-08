@@ -2,8 +2,10 @@ from abc import ABC
 
 from aiohttp import ClientResponse
 
-from hapixel.utils.request_item import RequestItem
+from ..collections.exceptions import RequestNotDone
 from ..core import Client
+from ..utils.request_item import RequestItem
+from ..utils import Missing, MISSING
 
 
 class BaseRequest(ABC):
@@ -27,6 +29,13 @@ class BaseRequest(ABC):
 
         return self
 
+    def _get_data(self, key: str) -> int | str | dict | list | None | Missing:
+        if self.__json is None:
+            raise RequestNotDone()
+        if key not in self.__json:
+            return MISSING
+        return self.__json[key]
+
     def __repr__(self) -> str:
         return (f"<{self.__class__.__name__} endpoint_url={self.__url}, "
                 f"request_data={self.__request_data}>")
@@ -46,3 +55,7 @@ class BaseRequest(ABC):
     @property
     def json(self) -> dict | None:
         return self.__json
+
+    @property
+    def success(self):
+        return self._get_data('success')
