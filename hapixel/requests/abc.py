@@ -14,7 +14,7 @@ class BaseRequest(ABC):
         self.__response = None
         self.__json = None
 
-    async def request(self, client_id: int | str = None):
+    async def request(self, client_id: int | str = None) -> 'BaseRequest':
         client = Client.instance_from_id(client_id)
 
         request_item = RequestItem(self.__url, self.__request_data)
@@ -24,6 +24,8 @@ class BaseRequest(ABC):
         future = await request_item.future
 
         self.__response, self.__json = future
+
+        return self
 
     def __repr__(self) -> str:
         return (f"<{self.__class__.__name__} endpoint_url={self.__url}, "

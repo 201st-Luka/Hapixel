@@ -1,1 +1,1 @@
-from .player_data import PlayerRequest
+from .player_data import PlayerRequest, RecentGamesRequest
