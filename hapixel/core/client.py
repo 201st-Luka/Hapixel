@@ -56,6 +56,11 @@ class Client:
 
         self.__logger.debug(f"Creating new instance of {self.__class__.__name__}")
 
+        self.rate_limit_limit = None
+        self.rate_limit_remaining = None
+        self.rate_limit_reset = None
+        self.last_request_time = None
+
         self.__logger.debug(
             f"Initializing {self.__class__.__name__} with the following parameters:\n"
             f"\tapi_key={api_key}, default_logging={default_logging}, custom_id={custom_id}, "

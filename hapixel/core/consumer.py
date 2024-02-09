@@ -1,5 +1,6 @@
 from asyncio import create_task, sleep, Task, run
 from time import perf_counter
+from datetime import datetime
 from urllib.parse import urlencode
 
 from aiohttp import ClientSession, ClientTimeout
@@ -13,7 +14,8 @@ __all__ = (
 
 
 class Timer:
-    def __init__(self, interval: float):
+    def __init__(self, client, interval: float):
+        self.__client = client
         self.__interval = interval
 
     async def __aenter__(self):
@@ -23,8 +25,12 @@ class Timer:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.__end = perf_counter()
         elapsed = self.__end - self.__start
+
         if elapsed < self.__interval:
             await sleep(self.__interval - elapsed)
+
+        if self.__client.rate_limit_remaining == 0:
+            await sleep(self.__client.rate_limit_reset)
 
 
 class Consumer:
@@ -55,6 +61,14 @@ class Consumer:
         ) as response:
             self.__client.logger.debug(f"Got response={response} for item='{item}' for client='{self.__client.id}'")
 
+            self.__client.last_request_time = datetime.strptime(
+                response.headers['Date'],
+                '%a, %d %b %Y %H:%M:%S %Z'
+            )
+            self.__client.rate_limit_limit = response.headers['RateLimit-Limit']
+            self.__client.rate_limit_remaining = response.headers['RateLimit-Remaining']
+            self.__client.rate_limit_reset = response.headers['RateLimit-Reset']
+
             item.future.set_result((response, await response.json()))
 
         self.__client.logger.info(f"Request for client='{self.__client.id}' with item='{item}' is done")
@@ -63,7 +77,7 @@ class Consumer:
         wait_time = 1 / self.__client.requests_per_second
 
         while True:
-            async with Timer(wait_time):
+            async with Timer(self.__client, wait_time):
                 item = await self.__client.queue.get()
 
                 self.__client.logger.debug(f"{self.__class__.__name__} for client='{self.__client.id}' got a request "
