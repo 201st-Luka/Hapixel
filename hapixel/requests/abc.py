@@ -19,8 +19,8 @@ class BaseAuthRequest(ABC):
         self.__url = endpoint_url
         self.__request_params = {k: v for k, v in request_params.items() if v is not None}
 
-        self.__response = None
-        self.__json = None
+        self._response = None
+        self._json = None
 
     async def request(self, client_id: int | str = None) -> 'BaseAuthRequest':
         client = Client.instance_from_id(client_id)
@@ -31,16 +31,16 @@ class BaseAuthRequest(ABC):
 
         future = await request_item.future
 
-        self.__response, self.__json = future
+        self._response, self._json = future
 
         return self
 
     def _get_data(self, key: str) -> int | str | dict | list | None | Missing:
-        if self.__json is None:
+        if self._json is None:
             raise RequestNotDone()
-        if key not in self.__json:
+        if key not in self._json:
             return MISSING
-        return self.__json[key]
+        return self._json[key]
 
     def __repr__(self) -> str:
         return (f"<{self.__class__.__name__} endpoint_url={self.__url}, "
@@ -56,11 +56,11 @@ class BaseAuthRequest(ABC):
 
     @property
     def response(self) -> ClientResponse | None:
-        return self.__response
+        return self._response
 
     @property
     def json(self) -> dict | None:
-        return self.__json
+        return self._json
 
     @property
     def success(self):
@@ -72,8 +72,6 @@ class BaseRequest(BaseAuthRequest, ABC):
     async def request(self, client_id: int | str = None) -> 'BaseAuthRequest':
         client = Client.instance_from_id(client_id)
 
-        async with client.consumer.get(self.endpoint_url, **self.request_data) as r:
-            self.__response = r
-            self.__json = await r.json()
+        self._response, self._json = await client.consumer.get(self.endpoint_url, **self.request_data)
 
         return self

@@ -2,7 +2,7 @@ from asyncio import create_task, sleep, Task, run
 from time import perf_counter
 from datetime import datetime
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, ClientResponse
 
 from ..collections import HapixelStatus, HapixelException
 from ..utils import RequestItem
@@ -128,7 +128,7 @@ class Consumer:
     def is_running(self) -> bool:
         return self.__status == HapixelStatus.RUNNING
 
-    async def get(self, endpoint_url: str, **request_params):
+    async def get(self, endpoint_url: str, **request_params) -> tuple[ClientResponse, dict]:
         if not self.is_running():
             raise HapixelException("Consumer is not running, start the associated client first")
 
@@ -137,8 +137,8 @@ class Consumer:
         async with self.__session.get(
             f"{self.__client.version}/{endpoint_url}",
             params=request_params,
-        ) as request:
-            return await request.json()
+        ) as response:
+            return response, await response.json()
 
     @property
     def task(self) -> Task | None:
