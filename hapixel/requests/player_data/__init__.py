@@ -1,2 +1,2 @@
 from .player import PlayerRequest
-from .RecentGames import RecentGamesRequest
+from .recent_games import RecentGamesRequest
