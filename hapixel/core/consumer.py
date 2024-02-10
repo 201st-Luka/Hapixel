@@ -4,7 +4,7 @@ from datetime import datetime
 
 from aiohttp import ClientSession, ClientTimeout, ClientResponse
 
-from ..collections import HapixelStatus, HapixelException
+from ..collections import HapixelStatus, HapixelException, NoAuthenticationProvided
 from ..utils import RequestItem
 
 __all__ = (
@@ -56,23 +56,34 @@ class Consumer:
     async def __request(self, item: RequestItem):
         self.__client.logger.debug(f"Requesting item='{item}' for client='{self.__client.id}'")
 
-        async with self.__header_session.get(
-                f"{self.__client.version}/{item.url}",
-                params=item.params,
-        ) as response:
-            self.__client.logger.debug(f"Got response={response} for item='{item}' for client='{self.__client.id}'")
+        response, json, exception = None, None, None
 
-            self.__client.last_request_time = datetime.strptime(
-                response.headers['Date'],
-                '%a, %d %b %Y %H:%M:%S %Z'
-            )
-            self.__client.rate_limit_limit = response.headers['RateLimit-Limit']
-            self.__client.rate_limit_remaining = response.headers['RateLimit-Remaining']
-            self.__client.rate_limit_reset = response.headers['RateLimit-Reset']
+        try:
+            if self.__header_session is None:
+                self.__client.logger.warning(f"No authentication has been provided for client='{self.__client.id}'")
+                raise NoAuthenticationProvided
 
-            item.future.set_result((response, await response.json()))
+            async with self.__header_session.get(
+                    f"{self.__client.version}/{item.url}",
+                    params=item.params,
+            ) as response:
+                self.__client.logger.debug(f"Got response={response} for item='{item}' for client='{self.__client.id}'")
 
-        self.__client.logger.info(f"Request for client='{self.__client.id}' with item='{item}' is done")
+                self.__client.last_request_time = datetime.strptime(
+                    response.headers['Date'],
+                    '%a, %d %b %Y %H:%M:%S %Z'
+                )
+                self.__client.rate_limit_limit = response.headers['RateLimit-Limit']
+                self.__client.rate_limit_remaining = response.headers['RateLimit-Remaining']
+                self.__client.rate_limit_reset = response.headers['RateLimit-Reset']
+
+                json = await response.json()
+        except Exception as e:
+            exception = e
+        finally:
+            item.future.set_result((response, json, exception))
+
+            self.__client.logger.info(f"Request for client='{self.__client.id}' with item='{item}' is done")
 
     async def __run(self):
         while True:
@@ -93,13 +104,15 @@ class Consumer:
             self.__client.logger.debug(f"Starting {self.__class__.__name__} for client='{self.__client.id}'")
             self.__status = HapixelStatus.RUNNING
 
-            self.__header_session = ClientSession(
-                self.__client.base_url,
-                timeout=ClientTimeout(total=self.__client.timeout),
-                headers={
-                    'API-Key': self.__client.api_key
-                }
-            )
+            if self.__client.api_key is not None:
+                self.__header_session = ClientSession(
+                    self.__client.base_url,
+                    timeout=ClientTimeout(total=self.__client.timeout),
+                    headers={
+                        'API-Key': self.__client.api_key
+                    }
+                )
+
             self.__session = ClientSession(
                 self.__client.base_url,
                 timeout=ClientTimeout(total=self.__client.timeout),
@@ -116,8 +129,9 @@ class Consumer:
             self.__client.logger.debug(f"Stopping {self.__class__.__name__} for client='{self.__client.id}'")
             self.__status = HapixelStatus.PAUSED
 
-            await self.__header_session.close()
-            self.__header_session = None
+            if self.__header_session is not None:
+                await self.__header_session.close()
+                self.__header_session = None
             await self.__session.close()
             self.__session = None
             self.__task.cancel()

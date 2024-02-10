@@ -19,7 +19,7 @@ class Client:
 
     def __new__(
             cls,
-            *,
+            *args,
             custom_id: str = None,
             **kwargs
     ) -> 'Client':
@@ -38,12 +38,13 @@ class Client:
 
     def __init__(
             self,
-            api_key: str,
+            api_key: str | None,
             *,
             default_logging: bool = False,
             custom_id: str = None,
             logger: Logger = MISSING,
             request_timeout: float = 30,
+            raise_exceptions: bool = True
     ):
         if default_logging:
             if logger is not MISSING:
@@ -67,10 +68,14 @@ class Client:
             f"logger={logger}, request_timeout={request_timeout}"
         )
 
-        if not isinstance(api_key, str):
-            raise ApiKeyException("API key must be a string")
-        if api_key == "":
-            raise ApiKeyException("API key cannot be an empty string")
+        if api_key is None:
+            self.__logger.warning("No API key provided, client will not be able to make requests that require "
+                                  "authentication")
+        else:
+            if not isinstance(api_key, str):
+                raise ApiKeyException("API key must be a string")
+            if api_key == "":
+                raise ApiKeyException("API key cannot be an empty string")
         self.__api_key = api_key
         self.__status = HapixelStatus.PAUSED
         if custom_id is not None:
@@ -80,6 +85,8 @@ class Client:
 
         self.timeout = request_timeout
         self.request_wait_time = 1 / self.requests_per_second if self.requests_per_second else 0
+
+        self.raise_exceptions = raise_exceptions
 
         self.__logger.debug(f"Initializing queue for {self.__class__.__name__} with id={self.__id}")
         self.__queue = Queue()
@@ -143,6 +150,13 @@ class Client:
             await self.__consumer.stop()
             self.__logger.info(f"Stopped {self.__class__.__name__} with id={self.__id}")
 
+    def toggle_exception_raising(self):
+        self.raise_exceptions = not self.raise_exceptions
+
+    @property
+    def logging(self) -> bool:
+        return self.__logger is not MISSING
+
     @property
     def id(self) -> int | str:
         return self.__id
@@ -187,5 +201,5 @@ class Client:
         raise HapixelException(f"No client with the ID '{id_}' exists")
 
     @classmethod
-    def instances(cls) -> list['Client']:
+    def get_instances(cls) -> list['Client']:
         return cls.__instances

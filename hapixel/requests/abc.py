@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from sys import stderr
 
 from aiohttp import ClientResponse
 
@@ -20,8 +21,9 @@ class BaseAuthRequest(ABC):
         self.__url = endpoint_url
         self.__request_params = {k: v for k, v in request_params.items() if v is not None}
 
-        self._response = None
-        self._json = None
+        self._response: ClientResponse | None = None
+        self._json: dict | None = None
+        self._exception: Exception | None = None
 
     async def request(self, client_id: int | str = None) -> 'BaseAuthRequest':
         client = Client.instance_from_id(client_id)
@@ -32,7 +34,17 @@ class BaseAuthRequest(ABC):
 
         future = await request_item.future
 
-        self._response, self._json = future
+        self._response, self._json, self._exception = future
+
+        if self._exception is not None:
+            if client.raise_exceptions:
+                raise self._exception
+            elif client.logging:
+                client.logger.error(f"Exception occurred while requesting {self.__class__.__name__}: "
+                                    f"{self._exception}",)
+            else:
+                print(f"Exception occurred while requesting {self.__class__.__name__}: "
+                      f"{self._exception}", file=stderr)
 
         return self
 
