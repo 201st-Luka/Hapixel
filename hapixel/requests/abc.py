@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from aiohttp import ClientResponse
 
@@ -15,6 +15,7 @@ __all__ = (
 
 
 class BaseAuthRequest(ABC):
+    @abstractmethod
     def __init__(self, endpoint_url: str, **request_params):
         self.__url = endpoint_url
         self.__request_params = {k: v for k, v in request_params.items() if v is not None}

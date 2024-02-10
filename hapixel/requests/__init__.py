@@ -13,3 +13,20 @@ from .resources import (
     VanityPetsRequest,
     VanityCompanionsRequest
 )
+from .skyblock import (
+    AuctionRequest,
+    AuctionsRequest,
+    EndedAuctionsRequest,
+    BazaarRequest,
+    BingoGoalsRequest,
+    BingoDataRequest,
+    CollectionsRequest,
+    ElectionRequest,
+    FireSalesRequest,
+    ItemsRequest,
+    MuseumRequest,
+    NewsRequest,
+    ProfileRequest,
+    ProfilesRequest,
+    SkillsRequest
+)
