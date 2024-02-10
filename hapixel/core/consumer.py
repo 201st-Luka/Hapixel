@@ -1,7 +1,6 @@
 from asyncio import create_task, sleep, Task, run
 from time import perf_counter
 from datetime import datetime
-from urllib.parse import urlencode
 
 from aiohttp import ClientSession, ClientTimeout
 
@@ -14,9 +13,9 @@ __all__ = (
 
 
 class Timer:
-    def __init__(self, client, interval: float):
+    def __init__(self, client):
         self.__client = client
-        self.__interval = interval
+        self.__interval = client.request_wait_time
 
     async def __aenter__(self):
         self.__start = perf_counter()
@@ -41,6 +40,7 @@ class Consumer:
         self.__client = client
 
         self.__task: Task | None = None
+        self.__header_session: ClientSession | None = None
         self.__session: ClientSession | None = None
 
         self.__status = HapixelStatus.PAUSED
@@ -56,8 +56,9 @@ class Consumer:
     async def __request(self, item: RequestItem):
         self.__client.logger.debug(f"Requesting item='{item}' for client='{self.__client.id}'")
 
-        async with self.__session.get(
-                f"{self.__client.version}/{item.url}?{urlencode(item.data)}"
+        async with self.__header_session.get(
+                f"{self.__client.version}/{item.url}",
+                params=item.params,
         ) as response:
             self.__client.logger.debug(f"Got response={response} for item='{item}' for client='{self.__client.id}'")
 
@@ -74,10 +75,8 @@ class Consumer:
         self.__client.logger.info(f"Request for client='{self.__client.id}' with item='{item}' is done")
 
     async def __run(self):
-        wait_time = 1 / self.__client.requests_per_second
-
         while True:
-            async with Timer(self.__client, wait_time):
+            async with Timer(self.__client):
                 item = await self.__client.queue.get()
 
                 self.__client.logger.debug(f"{self.__class__.__name__} for client='{self.__client.id}' got a request "
@@ -94,24 +93,31 @@ class Consumer:
             self.__client.logger.debug(f"Starting {self.__class__.__name__} for client='{self.__client.id}'")
             self.__status = HapixelStatus.RUNNING
 
-            self.__session = ClientSession(
+            self.__header_session = ClientSession(
                 self.__client.base_url,
                 timeout=ClientTimeout(total=self.__client.timeout),
                 headers={
                     'API-Key': self.__client.api_key
                 }
             )
+            self.__session = ClientSession(
+                self.__client.base_url,
+                timeout=ClientTimeout(total=self.__client.timeout),
+            )
+
             self.__task = create_task(self.__run())
 
             self.__client.logger.debug(f"Started {self.__class__.__name__} for client='{self.__client.id}'")
 
     async def stop(self):
         if not self.is_running():
-            raise HapixelException("Consumer is not running")
+            raise HapixelException("Consumer is not running, start the associated client first")
         else:
             self.__client.logger.debug(f"Stopping {self.__class__.__name__} for client='{self.__client.id}'")
             self.__status = HapixelStatus.PAUSED
 
+            await self.__header_session.close()
+            self.__header_session = None
             await self.__session.close()
             self.__session = None
             self.__task.cancel()
@@ -122,9 +128,25 @@ class Consumer:
     def is_running(self) -> bool:
         return self.__status == HapixelStatus.RUNNING
 
+    async def get(self, endpoint_url: str, **request_params):
+        if not self.is_running():
+            raise HapixelException("Consumer is not running, start the associated client first")
+
+        self.__client.logger.debug(f"Requesting endpoint_url='{endpoint_url}' with request_params='{request_params}'")
+
+        async with self.__session.get(
+            f"{self.__client.version}/{endpoint_url}",
+            params=request_params,
+        ) as request:
+            return await request.json()
+
     @property
     def task(self) -> Task | None:
         return self.__task
+
+    @property
+    def header_session(self) -> ClientSession | None:
+        return self.__header_session
 
     @property
     def session(self) -> ClientSession | None:

@@ -79,6 +79,7 @@ class Client:
             self.__id = len(Client.__instances)
 
         self.timeout = request_timeout
+        self.request_wait_time = 1 / self.requests_per_second if self.requests_per_second else 0
 
         self.__logger.debug(f"Initializing queue for {self.__class__.__name__} with id={self.__id}")
         self.__queue = Queue()
@@ -183,7 +184,7 @@ class Client:
             if instance.id == id_:
                 return instance
 
-        raise HapixelException("No client with this ID exists")
+        raise HapixelException(f"No client with the ID '{id_}' exists")
 
     @classmethod
     def instances(cls) -> list['Client']:
