@@ -1,4 +1,4 @@
-from ..abc import BaseRequest
+from ..abc import BaseAuthRequest
 from ...utils import uuid_from_username
 
 
@@ -7,9 +7,9 @@ __all__ = (
 )
 
 
-class PlayerRequest(BaseRequest):
-    def __init__(self, uuid: str):
-        super().__init__("player", uuid=uuid)
+class PlayerRequest(BaseAuthRequest):
+    def __init__(self, player_uuid: str):
+        super().__init__("player", uuid=player_uuid)
 
     @classmethod
     async def from_username(cls, username: str) -> 'PlayerRequest':

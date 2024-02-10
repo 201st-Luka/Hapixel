@@ -5,12 +5,12 @@ class RequestItem:
     def __init__(
             self,
             url: str,
-            data: dict | None,
+            params: dict | None,
     ):
         self.url = url
-        self.data = data
+        self.params = params
 
         self.future: Future = Future()
 
     def __repr__(self) -> str:
-        return f"<RequestItem url={self.url}, data={self.data}>"
+        return f"<RequestItem url={self.url}, params={self.params}>"

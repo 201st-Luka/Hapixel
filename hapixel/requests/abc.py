@@ -8,18 +8,24 @@ from ..utils.request_item import RequestItem
 from ..utils import Missing, MISSING
 
 
-class BaseRequest(ABC):
-    def __init__(self, endpoint_url: str, **request_data):
+__all__ = (
+    'BaseAuthRequest',
+    'BaseRequest',
+)
+
+
+class BaseAuthRequest(ABC):
+    def __init__(self, endpoint_url: str, **request_params):
         self.__url = endpoint_url
-        self.__request_data = {k: v for k, v in request_data.items() if v is not None}
+        self.__request_params = {k: v for k, v in request_params.items() if v is not None}
 
         self.__response = None
         self.__json = None
 
-    async def request(self, client_id: int | str = None) -> 'BaseRequest':
+    async def request(self, client_id: int | str = None) -> 'BaseAuthRequest':
         client = Client.instance_from_id(client_id)
 
-        request_item = RequestItem(self.__url, self.__request_data)
+        request_item = RequestItem(self.__url, self.__request_params)
 
         await client.queue.put(request_item)
 
@@ -38,7 +44,7 @@ class BaseRequest(ABC):
 
     def __repr__(self) -> str:
         return (f"<{self.__class__.__name__} endpoint_url={self.__url}, "
-                f"request_data={self.__request_data}>")
+                f"request_data={self.__request_params}>")
 
     @property
     def endpoint_url(self) -> str:
@@ -46,7 +52,7 @@ class BaseRequest(ABC):
 
     @property
     def request_data(self) -> dict | str | int | None:
-        return self.__request_data
+        return self.__request_params
 
     @property
     def response(self) -> ClientResponse | None:
@@ -59,3 +65,15 @@ class BaseRequest(ABC):
     @property
     def success(self):
         return self._get_data('success')
+
+
+class BaseRequest(BaseAuthRequest, ABC):
+
+    async def request(self, client_id: int | str = None) -> 'BaseAuthRequest':
+        client = Client.instance_from_id(client_id)
+
+        async with client.consumer.get(self.endpoint_url, **self.request_data) as r:
+            self.__response = r
+            self.__json = await r.json()
+
+        return self
