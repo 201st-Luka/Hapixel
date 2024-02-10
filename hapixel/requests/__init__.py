@@ -30,3 +30,9 @@ from .skyblock import (
     ProfilesRequest,
     SkillsRequest
 )
+from .other import (
+    BoostersRequest,
+    CountsRequest,
+    LeaderboardsRequest,
+    PunishmentStatsRequest
+)
