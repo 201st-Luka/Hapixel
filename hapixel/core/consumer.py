@@ -29,6 +29,8 @@ class Timer:
             await sleep(self.__interval - elapsed)
 
         if self.__client.rate_limit_remaining == 0:
+            self.__client.logger.warning(f"Rate limit reached and client='{self.__client.id}' is throttled, "
+                                         f"waiting for reset in {self.__client.rate_limit_reset}s")
             await sleep(self.__client.rate_limit_reset)
 
 
