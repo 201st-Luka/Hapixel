@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import TypeVar, Generic, Iterator, Callable, List
 
 from ..collections import RequestNotDone
@@ -7,6 +8,8 @@ __all__ = (
     'BaseResponse',
     'BaseIterator',
     'FieldFormatter',
+    'BaseEnumGetter',
+    'Factory',
 )
 
 T = TypeVar('T')
@@ -21,13 +24,13 @@ class FieldFormatter:
 
 
 class ResponseMeta(type):
-    def __new__(mcs, name, bases, namespace, **kwargs):
-        annotations = namespace.get('__annotations__')
+    def __new__(mcs, name, bases, namespace: dict, **kwargs):
+        __annotations = namespace.get('__annotations__')
 
-        if annotations is None:
+        if __annotations is None:
             return super(ResponseMeta, mcs).__new__(mcs, name, bases, namespace, **kwargs)
 
-        annots = {
+        __annots = {
             arg: FieldFormatter(
                 snake_to_camel_case(arg), annot
             ) if arg not in namespace else FieldFormatter(
@@ -35,21 +38,19 @@ class ResponseMeta(type):
                 namespace[arg].type or annot,
                 namespace[arg].sub_type
             )
-            for arg, annot in annotations.items()
+            for arg, annot in __annotations.items()
             if arg not in namespace or isinstance(namespace[arg], FieldFormatter)
         }
 
-        for arg, field in annots.items():
-            namespace[arg] = property(
+        namespace.update({
+            arg: property(
                 (lambda self, f=field:
-                    f.type(self._get_json(f.key_name))) if field.sub_type is None else
+                 f.type(self._get_json(f.key_name))) if field.sub_type is None else
                 (lambda self, f=field:
-                    f.type(self._get_json(f.key_name), f.sub_type))
+                 f.type(self._get_json(f.key_name), f.sub_type))
             )
-            del namespace['__annotations__'][arg]
-
-        if namespace['__annotations__'] == {}:
-            del namespace['__annotations__']
+            for arg, field in __annots.items()
+        })
 
         return super(ResponseMeta, mcs).__new__(mcs, name, bases, namespace, **kwargs)
 
@@ -65,7 +66,7 @@ class BaseResponse(metaclass=ResponseMeta):
         self._json = json
 
     def _get_json(self, key: str) -> int | str | dict | list | None | Missing:
-        if hasattr(self, '_exception') and self._exception is not None:
+        if hasattr(self, '_exception') and self._exception:
             raise self._exception
         if self._json is None:
             raise RequestNotDone()
@@ -74,7 +75,7 @@ class BaseResponse(metaclass=ResponseMeta):
         return self._json[key]
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} json={self._json}>"
+        return f"<{self.__class__.__name__} json={'{' + ', '.join(f'{key}' for key in self._json.keys()) + '}'}>"
 
     @property
     def json(self) -> dict | None:
@@ -84,22 +85,105 @@ class BaseResponse(metaclass=ResponseMeta):
     def json(self, new_json: dict):
         self._json = new_json
 
-    success: bool
+
+class Factory:
+    def __init__(
+            self,
+            base: Callable[[dict], T] | Callable[[list], T] | Callable[[dict, ...], T] | Callable[[list, ...], T],
+            *args: Callable[[dict], T] | Callable[[list], T] | Callable[[dict, ...], T] | Callable[[list, ...], T]
+    ):
+        self.__base = base
+        self.__args = args
+
+    def __call__(self, json: dict | list) -> T:
+        return self.__base(json, *self.__args)
+
+    @property
+    def factory_args(self) -> tuple[
+        Callable[[dict], T] | Callable[[dict, T, ...], T] | Callable[[list, T, ...], T], ...
+    ]:
+        return self.__args
+
+    @property
+    def factory_base(self) -> Callable[[dict], T] | Callable[[dict, T, ...], T] | Callable[[list, T, ...], T]:
+        return self.__base
+
+    def __repr__(self) -> str:
+        return (
+            f"<Factory of type '{self.__base.__name__}' with args {', '.join(f'{arg}' for arg in self.__args)}>"
+            if self.__args else
+            f"<Factory of type '{self.__base.__name__}'>"
+        )
+
+
+class BaseEnumGetter(BaseResponse, Generic[T]):
+    _factory: Factory
+
+    def get_value(self, enum: Enum) -> T:
+        """
+        Get the value of the enum from the json.
+
+        Args:
+            enum (Enum):
+                The enum to get the value of.
+
+        Returns:
+            T:
+                The value of the enum (type cast).
+        """
+        return self._factory(self._get_json(enum.name))
+
+    def __len__(self) -> int:
+        return len(self._json)
+
+    def __getattr__(self, item: str) -> T:
+        return self._factory(self._get_json(item))
+
+    def __getitem__(self, item: str | Enum) -> T:
+        if isinstance(item, Enum):
+            item = item.name
+        return self._factory(self._get_json(item))
+
+    def __iter__(self) -> Iterator[T]:
+        return (self._factory(item) for item in self._json.values())
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} of type '{self._factory.factory_base.__name__}'>"
 
 
 class BaseIterator(Generic[T]):
-    def __init__(self, data: List[U], factory: Callable[[U], T]):
-        self.__data = data
-        self.__factory = factory
+    def __init__(self, data: List[U] | List[T], factory_args: Callable[[U], T], raw: bool = True):
+        self._factory = Factory(factory_args)
+
+        if raw:
+            self.__data = [self._factory(item) for item in data]
+        else:
+            self.__data = data
 
     def __iter__(self) -> Iterator[T]:
-        return (self.__factory(item) for item in self.__data)
+        return iter(self.__data)
 
     def __len__(self) -> int:
         return len(self.__data)
 
     def __getitem__(self, item) -> T:
-        return self.__factory(self.__data[item])
+        return self.__data[item]
+
+    def __call__(
+            self,
+            sort: bool = False,
+            key: Callable = None,
+            filter_: Callable[[T], bool] = None
+    ) -> 'BaseIterator[T]':
+        data = self.__data.copy()
+
+        if sort:
+            data.sort(key=key)
+
+        if filter_ is not None:
+            filter(filter_, data)
+
+        return self.__class__(data, *self._factory.factory_args, raw=False)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} of type '{type(self.__factory)}', len={len(self)}>"
+        return f"<{self.__class__.__name__} of type '{self._factory.factory_base.__name__}', len={len(self)}>"
