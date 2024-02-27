@@ -1,4 +1,6 @@
-from ..abc import BaseAuthRequest
+from ..base_classes import BaseAuthRequest
+
+from ...models import CountsGames
 
 
 __all__ = (
@@ -9,3 +11,6 @@ __all__ = (
 class CountsRequest(BaseAuthRequest):
     def __init__(self):
         super().__init__("counts")
+
+    games: CountsGames
+    player_count: int

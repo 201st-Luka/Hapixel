@@ -1,4 +1,4 @@
-from ..abc import BaseAuthRequest
+from ..base_classes import BaseAuthRequest
 
 
 __all__ = (

@@ -1,5 +1,7 @@
 from aiohttp import ClientSession
 
+from .primitive_types import UUID
+
 
 __all__ = (
     'uuid_from_username',
@@ -7,11 +9,11 @@ __all__ = (
 )
 
 
-async def uuid_from_username(username: str) -> str:
+async def uuid_from_username(username: str) -> UUID:
     async with ClientSession() as session:
         async with session.get(f"https://api.mojang.com/users/profiles/minecraft/{username}") as response:
             data = await response.json()
-            return data["id"]
+            return UUID(data["id"])
 
 
 def snake_to_camel_case(string: str) -> str:

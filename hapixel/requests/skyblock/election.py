@@ -1,4 +1,4 @@
-from ..abc import BaseRequest
+from ..base_classes import BaseRequest
 
 __all__ = (
     'ElectionRequest',

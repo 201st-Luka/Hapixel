@@ -1,4 +1,4 @@
-from ..abc import BaseRequest, BaseAuthRequest
+from ..base_classes import BaseRequest, BaseAuthRequest
 
 from ...utils import uuid_from_username
 

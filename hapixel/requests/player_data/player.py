@@ -1,5 +1,5 @@
-from ..abc import BaseAuthRequest
-from ...utils import uuid_from_username
+from ..base_classes import BaseAuthRequest
+from ...utils import uuid_from_username, UUID
 
 
 __all__ = (
@@ -8,7 +8,7 @@ __all__ = (
 
 
 class PlayerRequest(BaseAuthRequest):
-    def __init__(self, player_uuid: str):
+    def __init__(self, player_uuid: UUID):
         super().__init__("player", uuid=player_uuid)
 
     @classmethod
