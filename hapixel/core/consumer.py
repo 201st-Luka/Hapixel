@@ -4,7 +4,8 @@ from datetime import datetime
 
 from aiohttp import ClientSession, ClientTimeout, ClientResponse
 
-from ..collections import HapixelStatus, HapixelException, NoAuthenticationProvided
+from ..collections import HapixelStatus, HapixelException, NoAuthenticationProvided, MissingData, Forbidden, NoData, \
+    InvalidData, Throttled, UnavailableData
 from ..utils import RequestItem
 
 __all__ = (
@@ -75,11 +76,34 @@ class Consumer:
                     response.headers['Date'],
                     '%a, %d %b %Y %H:%M:%S %Z'
                 )
-                self.__client.rate_limit_limit = response.headers['RateLimit-Limit']
-                self.__client.rate_limit_remaining = response.headers['RateLimit-Remaining']
-                self.__client.rate_limit_reset = response.headers['RateLimit-Reset']
 
                 json = await response.json()
+                cause = json.get('cause')
+
+                match response.status:
+                    case 200:
+                        self.__client.rate_limit_limit = response.headers['RateLimit-Limit']
+                        self.__client.rate_limit_remaining = response.headers['RateLimit-Remaining']
+                        self.__client.rate_limit_reset = response.headers['RateLimit-Reset']
+                    case 400:
+                        raise MissingData("Some data is missing, this is usually a field.", cause=cause)
+                    case 403:
+                        raise Forbidden("Access is forbidden, usually due to an invalid API key beeing used.",
+                                        cause=cause)
+                    case 404:
+                        raise NoData("No data could be found for the provided player UUID.", cause=cause)
+                    case 422:
+                        raise InvalidData("Some data provided is invalid.", cause=cause)
+                    case 429:
+                        raise Throttled("A request limit has been reached, usually this is due to the limit on the "
+                                        "key being reached but can also be triggered by a global rate limit.",
+                                        cause=cause, throttle=json.get('throttle'), global_=json.get('global'))
+                    case 503:
+                        raise UnavailableData("The data is not yet populated and should be available shortly.",
+                                              cause=cause)
+                    case _:
+                        pass
+
         except Exception as e:
             exception = e
         finally:
