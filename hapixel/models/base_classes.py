@@ -151,22 +151,29 @@ class BaseEnumGetter(BaseResponse, Generic[T]):
         return f"<{self.__class__.__name__} of type '{self._factory.factory_base.__name__}'>"
 
 
-class BaseIterator(Generic[T]):
-    def __init__(self, data: List[U] | List[T], factory_args: Callable[[U], T], raw: bool = True):
-        self._factory = Factory(factory_args)
-
+class BaseIterator[T]:
+    def __init__(self, data: List[U] | List[T], raw: bool = True):
         if raw:
-            self.__data = [self._factory(item) for item in data]
+            self.__raw_data = data
+            self.__data = None
         else:
             self.__data = data
+            self.__raw_data = None
+
+    def __transform_data(self):
+        self.__data = [self.__orig_class__.__args__[0](item) for item in self.__raw_data]
 
     def __iter__(self) -> Iterator[T]:
+        if self.__data is None:
+            self.__transform_data()
         return iter(self.__data)
 
     def __len__(self) -> int:
-        return len(self.__data)
+        return len(self.__raw_data)
 
     def __getitem__(self, item) -> T:
+        if self.__data is None:
+            self.__transform_data()
         return self.__data[item]
 
     def __call__(
@@ -175,6 +182,9 @@ class BaseIterator(Generic[T]):
             key: Callable = None,
             filter_: Callable[[T], bool] = None
     ) -> 'BaseIterator[T]':
+        if self.__data is None:
+            self.__transform_data()
+
         data = self.__data.copy()
 
         if sort:
@@ -183,7 +193,9 @@ class BaseIterator(Generic[T]):
         if filter_ is not None:
             filter(filter_, data)
 
-        return self.__class__(data, *self._factory.factory_args, raw=False)
+        return self.__class__[self.__orig_class__.__args__[0]](data.copy(), raw=False)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} of type '{self._factory.factory_base.__name__}', len={len(self)}>"
+        return (f"<{self.__class__.__name__} of type '"
+                f"{self.__orig_class__.__args__[0].__name__ if hasattr(self, '__orig_class__') else self.__raw_data[0].__class__.__name__}"
+                f"', len={len(self)}>")
