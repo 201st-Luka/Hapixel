@@ -1,6 +1,7 @@
 from ..base_classes import BaseAuthRequest
 from ...collections import HapixelException
 from ...utils import uuid_from_username
+from ...models import Guild
 
 
 __all__ = (
@@ -17,3 +18,5 @@ class GuildRequest(BaseAuthRequest):
     @classmethod
     async def from_username(cls, username: str, id_: str = None, name: str = None):
         return cls(id_, await uuid_from_username(username), name)
+
+    guild: Guild
