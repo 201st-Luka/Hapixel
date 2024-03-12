@@ -35,14 +35,14 @@ class BaseAuthRequest(BaseResponse):
         self._response, self._json, self._exception = future
 
         if self._exception is not None:
-            if client.raise_exceptions:
-                raise self._exception
-            elif client.logging:
+            if client.logging:
                 client.logger.error(f"Exception occurred while requesting {self.__class__.__name__}: "
                                     f"{self._exception}",)
             else:
                 print(f"Exception occurred while requesting {self.__class__.__name__}: "
                       f"{self._exception}", file=stderr)
+
+            raise self._exception
 
         return self
 

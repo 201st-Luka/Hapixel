@@ -44,7 +44,6 @@ class Client:
             custom_id: str = None,
             logger: Logger = MISSING,
             request_timeout: float = 30,
-            raise_exceptions: bool = True
     ):
         if default_logging:
             if logger is not MISSING:
@@ -85,8 +84,6 @@ class Client:
 
         self.timeout = request_timeout
         self.request_wait_time = 1 / self.requests_per_second if self.requests_per_second else 0
-
-        self.raise_exceptions = raise_exceptions
 
         self.__logger.debug(f"Initializing queue for {self.__class__.__name__} with id={self.__id}")
         self.__queue = Queue()
@@ -149,9 +146,6 @@ class Client:
 
             await self.__consumer.stop()
             self.__logger.info(f"Stopped {self.__class__.__name__} with id={self.__id}")
-
-    def toggle_exception_raising(self):
-        self.raise_exceptions = not self.raise_exceptions
 
     @property
     def logging(self) -> bool:
